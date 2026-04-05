@@ -13,4 +13,15 @@ export const trackApi = {
       },
     });
   },
+  useSong: (id: number | undefined) => {
+    return useQuery({
+      queryKey: ["song", id],
+      enabled: !!id,
+      queryFn: async ({ queryKey }) => {
+        const [, id] = queryKey;
+
+        return `https://songs-server-77f8c19e00d5.herokuapp.com/api/songs/${id}/stream`;
+      },
+    });
+  },
 };
