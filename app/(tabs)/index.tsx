@@ -1,6 +1,6 @@
 import { Player } from "@/components/player";
 import { SongItem } from "@/components/SongItem";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { trackApi } from "../api/trackApi";
 import { Song } from "../types";
@@ -8,6 +8,13 @@ import { Song } from "../types";
 export default function HomeScreen() {
   const { data, isLoading } = trackApi.useList();
   const [currentSongId, setCurrentSongId] = useState<number | undefined>();
+
+  useEffect(() => {
+    if (!data) return;
+    if (data?.data && data.data.length > 0) {
+      setCurrentSongId(1);
+    }
+  }, [data, setCurrentSongId]);
 
   const currentIndex = useMemo(
     () => data?.data.findIndex((el: Song) => el.id === currentSongId) ?? -1,
