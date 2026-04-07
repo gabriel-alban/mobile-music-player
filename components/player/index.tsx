@@ -7,6 +7,8 @@ import { Audio, AVPlaybackStatus } from "expo-av";
 import { useEffect, useRef, useState } from "react";
 import { GestureResponderEvent, Pressable, Text, View } from "react-native";
 
+const TEXT_WHITE = "#FFFFFF";
+
 export const Player = ({
   song,
   onPrevious,
@@ -115,8 +117,10 @@ export const Player = ({
           padding: 10,
         }}
       >
-        <Text>Playing: </Text>
-        <Text>{song.name}</Text>
+        <Text style={{ color: TEXT_WHITE }}>Playing: </Text>
+        <Text numberOfLines={1} style={{ flex: 1, color: TEXT_WHITE }}>
+          {song.name}
+        </Text>
       </View>
       <View
         style={{
@@ -128,17 +132,21 @@ export const Player = ({
         }}
       >
         <Pressable onPress={onPrevious}>
-          <MaterialIcons name="skip-previous" size={24} color="black" />
+          <MaterialIcons name="skip-previous" size={24} color={TEXT_WHITE} />
         </Pressable>
         <Pressable onPress={togglePlayPause}>
           {!isPlaying ? (
-            <AntDesign name="play-circle" size={24} color="black" />
+            <AntDesign name="play-circle" size={24} color={TEXT_WHITE} />
           ) : (
-            <AntDesign name="pause-circle" size={24} color="black" />
+            <AntDesign name="pause-circle" size={24} color={TEXT_WHITE} />
           )}
         </Pressable>
         <Pressable onPress={onNext}>
-          <MaterialCommunityIcons name="skip-next" size={24} color="black" />
+          <MaterialCommunityIcons
+            name="skip-next"
+            size={24}
+            color={TEXT_WHITE}
+          />
         </Pressable>
       </View>
 
@@ -163,8 +171,12 @@ export const Player = ({
 
       {/* Timp */}
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 12 }}>{formatTime(position)}</Text>
-        <Text style={{ fontSize: 12 }}>{songTime(song.duration)}</Text>
+        <Text style={{ fontSize: 12, color: TEXT_WHITE }}>
+          {formatTime(position)}
+        </Text>
+        <Text style={{ fontSize: 12, color: TEXT_WHITE }}>
+          {songTime(song.duration)}
+        </Text>
       </View>
     </View>
   );

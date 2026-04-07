@@ -46,7 +46,20 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, padding: 20, marginTop: 20 }}>
-      <Player song={currentSong} onNext={handleNext} onPrevious={handlePrev} />
+      <View
+        style={{
+          backgroundColor: "#1a1a2e",
+          borderRadius: 12,
+          padding: 16,
+          minHeight: 160,
+        }}
+      >
+        <Player
+          song={currentSong}
+          onNext={handleNext}
+          onPrevious={handlePrev}
+        />
+      </View>
       <FlatList
         data={data.data}
         keyExtractor={(item) => item.id}
