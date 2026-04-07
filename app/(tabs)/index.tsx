@@ -9,15 +9,14 @@ export default function HomeScreen() {
   const { data, isLoading } = trackApi.useList();
   const [currentSongId, setCurrentSongId] = useState<number | undefined>();
 
-  if (isLoading) {
-    return <Text>Loading...</Text>;
-  }
-
-  if (!data) return;
-
   const currentIndex = useMemo(
     () => data?.data.findIndex((el: Song) => el.id === currentSongId) ?? -1,
     [currentSongId, data],
+  );
+
+  const currentSong = useMemo(
+    () => data?.data.find((el: Song) => el.id === currentSongId) ?? {},
+    [currentIndex, data],
   );
 
   const handleNext = useCallback(() => {
@@ -32,13 +31,15 @@ export default function HomeScreen() {
     if (currentIndex > 0) setCurrentSongId(data.data[currentIndex - 1].id);
   }, [currentIndex, setCurrentSongId, data]);
 
+  if (isLoading) {
+    return <Text>Loading...</Text>;
+  }
+
+  if (!data) return null;
+
   return (
     <View style={{ flex: 1, padding: 20, marginTop: 20 }}>
-      <Player
-        currentSongId={currentSongId}
-        onNext={handleNext}
-        onPrevious={handlePrev}
-      />
+      <Player song={currentSong} onNext={handleNext} onPrevious={handlePrev} />
       <FlatList
         data={data.data}
         keyExtractor={(item) => item.id}
