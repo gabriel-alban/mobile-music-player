@@ -35,9 +35,8 @@ export const Player = ({
 
         const { sound } = await Audio.Sound.createAsync(
           { uri: streamUrl },
-          { shouldPlay: true },
+          { shouldPlay: false },
         );
-        console.log(sound);
 
         if (cancelled) {
           await sound.unloadAsync();
@@ -132,7 +131,11 @@ export const Player = ({
           <MaterialIcons name="skip-previous" size={24} color="black" />
         </Pressable>
         <Pressable onPress={togglePlayPause}>
-          <AntDesign name="play-circle" size={24} color="black" />
+          {!isPlaying ? (
+            <AntDesign name="play-circle" size={24} color="black" />
+          ) : (
+            <AntDesign name="pause-circle" size={24} color="black" />
+          )}
         </Pressable>
         <Pressable onPress={onNext}>
           <MaterialCommunityIcons name="skip-next" size={24} color="black" />

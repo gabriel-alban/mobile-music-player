@@ -11,7 +11,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!data) return;
-    if (data?.data && data.data.length > 0) {
+    if (data?.data.length > 0) {
       setCurrentSongId(1);
     }
   }, [data, setCurrentSongId]);
