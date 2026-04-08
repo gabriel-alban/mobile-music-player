@@ -3,8 +3,8 @@ import { Song } from "@/app/types";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Audio, AVPlaybackStatus } from "expo-av";
-import { useEffect, useRef, useState } from "react";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useEffect, useRef } from "react";
 import { GestureResponderEvent, Pressable, Text, View } from "react-native";
 
 const TEXT_WHITE = "#FFFFFF";
@@ -19,77 +19,51 @@ export const Player = ({
   onNext: () => void;
 }) => {
   const { data: streamUrl, isLoading } = trackApi.useSong(song.id);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [position, setPosition] = useState(0);
+  const keepPlayingRef = useRef<boolean>(false);
+  const onNextRef = useRef(onNext);
+  const progressBarWidth = useRef(0);
 
   useEffect(() => {
-    let cancelled = false;
+    onNextRef.current = onNext;
+  }, [onNext]);
 
-    const loadAndPlay = async () => {
-      try {
-        if (!streamUrl) return;
+  const player = useAudioPlayer(streamUrl ? { uri: streamUrl } : null);
+  const status = useAudioPlayerStatus(player);
 
-        if (soundRef.current) {
-          await soundRef.current.unloadAsync();
-          soundRef.current = null;
-        }
-
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: streamUrl },
-          { shouldPlay: false },
-        );
-
-        if (cancelled) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (!status.isLoaded) return;
-          setIsPlaying(status.isPlaying);
-          setPosition(status.positionMillis);
-        });
-
-        soundRef.current = sound;
-      } catch (err) {
-        console.error("Failed to load/play audio", err);
-      }
-    };
-
-    loadAndPlay();
-
-    return () => {
-      cancelled = true;
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      setIsPlaying(false);
-      setPosition(0);
-    };
+  useEffect(() => {
+    if (streamUrl && keepPlayingRef.current) {
+      player.play();
+    }
   }, [streamUrl]);
 
-  const togglePlayPause = async () => {
-    if (!soundRef.current) return;
+  useEffect(() => {
+    if (status.didJustFinish && keepPlayingRef.current) {
+      onNextRef.current();
+    }
+  }, [status.didJustFinish]);
 
+  const isPlaying = status.playing ?? false;
+  const position = (status.currentTime ?? 0) * 1000;
+  const progress = song.duration > 0 ? position / (song.duration * 1000) : 0;
+  const bufferProgress = 0;
+
+  const togglePlayPause = () => {
     if (isPlaying) {
-      await soundRef.current.pauseAsync();
+      keepPlayingRef.current = false;
+      player.pause();
     } else {
-      await soundRef.current.playAsync();
+      keepPlayingRef.current = true;
+      player.play();
     }
   };
 
-  const progress = song.duration > 0 ? position / (song.duration * 1000) : 0;
-  const progressBarWidth = useRef(0);
-
-  const handleSeek = async (e: GestureResponderEvent) => {
-    if (!soundRef.current || progressBarWidth.current === 0) return;
-    const ratio = e.nativeEvent.locationX / progressBarWidth.current;
+  const handleSeek = (e: GestureResponderEvent) => {
+    if (progressBarWidth.current === 0) return;
+    const locationX = e.nativeEvent.locationX;
+    const ratio = locationX / progressBarWidth.current;
     const clampedRatio = Math.max(0, Math.min(1, ratio));
-    const newPositionMs = clampedRatio * song.duration * 1000;
-    await soundRef.current.setPositionAsync(newPositionMs);
-    setPosition(newPositionMs);
+    const newPositionSeconds = clampedRatio * song.duration;
+    player.seekTo(newPositionSeconds);
   };
 
   const formatTime = (ms: number) => {
@@ -134,7 +108,7 @@ export const Player = ({
         <Pressable onPress={onPrevious}>
           <MaterialIcons name="skip-previous" size={24} color={TEXT_WHITE} />
         </Pressable>
-        <Pressable onPress={togglePlayPause}>
+        <Pressable onPress={togglePlayPause} disabled={isLoading}>
           {!isPlaying ? (
             <AntDesign name="play-circle" size={24} color={TEXT_WHITE} />
           ) : (
@@ -160,6 +134,16 @@ export const Player = ({
         <View style={{ height: 4, backgroundColor: "#ddd", borderRadius: 2 }}>
           <View
             style={{
+              position: "absolute",
+              height: 4,
+              width: `${bufferProgress * 100}%`,
+              backgroundColor: "#4caf82",
+              borderRadius: 2,
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
               height: 4,
               width: `${progress * 100}%`,
               backgroundColor: "#096d2c",

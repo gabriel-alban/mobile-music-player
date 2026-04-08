@@ -1,7 +1,9 @@
 import { Player } from "@/components/player";
 import { SongItem } from "@/components/SongItem";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { trackApi } from "../api/trackApi";
 import { Song } from "../types";
 
@@ -45,27 +47,39 @@ export default function HomeScreen() {
   if (!data) return null;
 
   return (
-    <View style={{ flex: 1, padding: 20, marginTop: 20 }}>
-      <View
-        style={{
-          backgroundColor: "#1a1a2e",
-          borderRadius: 12,
-          padding: 16,
-          minHeight: 160,
-        }}
+    <>
+      <StatusBar backgroundColor="#1a1a2e" style="light" />
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "#1a1a2e" }}
+        edges={["top"]}
       >
-        <Player
-          song={currentSong}
-          onNext={handleNext}
-          onPrevious={handlePrev}
-        />
-      </View>
+        <View style={{ flex: 1, padding: 20, marginTop: 20 }}>
+          <View
+            style={{
+              backgroundColor: "#1a1a2e",
+              borderRadius: 12,
+              padding: 16,
+              minHeight: 160,
+            }}
+          >
+            <Player
+              song={currentSong}
+              onNext={handleNext}
+              onPrevious={handlePrev}
+            />
+          </View>
+        </View>
+      </SafeAreaView>
       <FlatList
         data={data.data}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View
-            style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}
+            style={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: 8,
+            }}
           >
             <Text style={{ fontSize: 24, fontWeight: "bold" }}>Player</Text>
           </View>
@@ -77,8 +91,8 @@ export default function HomeScreen() {
             onSetCurrentSongId={setCurrentSongId}
           />
         )}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 20 }}
       />
-    </View>
+    </>
   );
 }
