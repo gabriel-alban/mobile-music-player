@@ -3,11 +3,29 @@ import { Song } from "@/app/types";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GestureResponderEvent, Pressable, Text, View } from "react-native";
+import { AudioContext } from "react-native-audio-api";
+import { WaveForm } from "../waveform";
 
 const TEXT_WHITE = "#FFFFFF";
+
+const loadAudioBuffer = (url: string): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.responseType = "arraybuffer";
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        resolve(xhr.response);
+      } else {
+        reject(new Error(`HTTP ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.send();
+  });
+};
 
 export const Player = ({
   song,
@@ -18,53 +36,168 @@ export const Player = ({
   onPrevious: () => void;
   onNext: () => void;
 }) => {
-  const { data: streamUrl, isLoading } = trackApi.useSong(song.id);
-  const keepPlayingRef = useRef<boolean>(false);
+  const { data: streamUrl } = trackApi.useSong(song.id);
   const onNextRef = useRef(onNext);
   const progressBarWidth = useRef(0);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<any>(null);
+  const sourceRef = useRef<any>(null);
+  const audioBufferRef = useRef<any>(null);
+
+  const startCtxTimeRef = useRef(0);
+  const startOffsetRef = useRef(0);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [position, setPosition] = useState(0);
+  const keepPlayingRef = useRef(false);
+
+  const progress = song.duration > 0 ? position / (song.duration * 1000) : 0;
 
   useEffect(() => {
     onNextRef.current = onNext;
   }, [onNext]);
 
-  const player = useAudioPlayer(streamUrl ? { uri: streamUrl } : null);
-  const status = useAudioPlayerStatus(player);
-
+  // Init AudioContext + AnalyserNode (once)
   useEffect(() => {
-    if (streamUrl && keepPlayingRef.current) {
-      player.play();
-    }
-  }, [streamUrl]);
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.connect(ctx.destination);
+    ctx.suspend();
 
+    audioContextRef.current = ctx;
+    analyserRef.current = analyser;
+
+    return () => {
+      ctx.close();
+    };
+  }, []);
+
+  // Helper: create a new source node from buffer at offset
+  const startSource = useCallback((buffer: any, offset: number) => {
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+
+    try {
+      sourceRef.current?.stop();
+    } catch {}
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(analyserRef.current!);
+    source.start(0, offset);
+    sourceRef.current = source;
+
+    startOffsetRef.current = offset;
+    startCtxTimeRef.current = ctx.currentTime;
+  }, []);
+
+  // Load audio buffer when streamUrl changes
   useEffect(() => {
-    if (status.didJustFinish && keepPlayingRef.current) {
-      onNextRef.current();
-    }
-  }, [status.didJustFinish]);
+    if (!streamUrl || !audioContextRef.current) return;
 
-  const isPlaying = status.playing ?? false;
-  const position = (status.currentTime ?? 0) * 1000;
-  const progress = song.duration > 0 ? position / (song.duration * 1000) : 0;
-  const bufferProgress = 0;
+    const ctx = audioContextRef.current;
+    let cancelled = false;
 
-  const togglePlayPause = () => {
+    setIsLoading(true);
+    setPosition(0);
+
+    (async () => {
+      try {
+        // Resume context before decoding (some implementations require it)
+        await ctx.resume();
+
+        // Use XHR for reliable binary data in React Native
+        const arrayBuffer = await loadAudioBuffer(streamUrl);
+        console.log("Buffer size:", arrayBuffer.byteLength);
+
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+
+        if (cancelled) return;
+
+        // Suspend again until user presses play
+        await ctx.suspend();
+
+        audioBufferRef.current = audioBuffer;
+        startSource(audioBuffer, 0);
+
+        if (keepPlayingRef.current) {
+          await ctx.resume();
+          setIsPlaying(true);
+        }
+      } catch (e) {
+        console.error("Failed to load audio:", e);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [streamUrl, startSource]);
+
+  // Position tracking + song end detection
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const interval = setInterval(() => {
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
+      const elapsed =
+        ctx.currentTime - startCtxTimeRef.current + startOffsetRef.current;
+      const posMs = elapsed * 1000;
+
+      if (elapsed >= song.duration) {
+        setPosition(song.duration * 1000);
+        setIsPlaying(false);
+        if (keepPlayingRef.current) {
+          onNextRef.current();
+        }
+        return;
+      }
+
+      setPosition(posMs);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, song.duration]);
+
+  const togglePlayPause = useCallback(() => {
+    const ctx = audioContextRef.current;
+    if (!ctx || !sourceRef.current) return;
+
     if (isPlaying) {
       keepPlayingRef.current = false;
-      player.pause();
+      ctx.suspend();
+      setIsPlaying(false);
     } else {
       keepPlayingRef.current = true;
-      player.play();
+      ctx.resume();
+      setIsPlaying(true);
     }
-  };
+  }, [isPlaying]);
 
-  const handleSeek = (e: GestureResponderEvent) => {
-    if (progressBarWidth.current === 0) return;
-    const locationX = e.nativeEvent.locationX;
-    const ratio = locationX / progressBarWidth.current;
-    const clampedRatio = Math.max(0, Math.min(1, ratio));
-    const newPositionSeconds = clampedRatio * song.duration;
-    player.seekTo(newPositionSeconds);
-  };
+  const handleSeek = useCallback(
+    (e: GestureResponderEvent) => {
+      if (progressBarWidth.current === 0) return;
+      const buffer = audioBufferRef.current;
+      if (!buffer) return;
+
+      const ratio = Math.max(
+        0,
+        Math.min(1, e.nativeEvent.locationX / progressBarWidth.current),
+      );
+      const seekTime = ratio * song.duration;
+
+      startSource(buffer, seekTime);
+      setPosition(seekTime * 1000);
+    },
+    [song.duration, startSource],
+  );
 
   const formatTime = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -76,7 +209,6 @@ export const Player = ({
   const songTime = (value: number) => {
     const min = Math.floor(value / 60);
     const sec = value % 60;
-
     return `${min}:${sec}`;
   };
 
@@ -96,6 +228,9 @@ export const Player = ({
           {song.name}
         </Text>
       </View>
+
+      <WaveForm analyser={analyserRef.current} isPlaying={isPlaying} />
+
       <View
         style={{
           flexDirection: "row",
@@ -136,15 +271,6 @@ export const Player = ({
             style={{
               position: "absolute",
               height: 4,
-              width: `${bufferProgress * 100}%`,
-              backgroundColor: "#4caf82",
-              borderRadius: 2,
-            }}
-          />
-          <View
-            style={{
-              position: "absolute",
-              height: 4,
               width: `${progress * 100}%`,
               backgroundColor: "#096d2c",
               borderRadius: 2,
@@ -153,7 +279,6 @@ export const Player = ({
         </View>
       </Pressable>
 
-      {/* Timp */}
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
         <Text style={{ fontSize: 12, color: TEXT_WHITE }}>
           {formatTime(position)}
