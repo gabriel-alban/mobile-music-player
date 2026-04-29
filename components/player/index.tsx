@@ -6,6 +6,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useEffect, useRef } from "react";
 import { GestureResponderEvent, Pressable, Text, View } from "react-native";
+import { SongName } from "../SongName";
 
 const TEXT_WHITE = "#FFFFFF";
 
@@ -92,9 +93,7 @@ export const Player = ({
         }}
       >
         <Text style={{ color: TEXT_WHITE }}>Playing: </Text>
-        <Text numberOfLines={1} style={{ flex: 1, color: TEXT_WHITE }}>
-          {song.name}
-        </Text>
+        <SongName title={song.name} />
       </View>
       <View
         style={{
